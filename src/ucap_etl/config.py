@@ -1,8 +1,8 @@
 """Configuración central del ETL: esquema de salida y rutas."""
 
 from __future__ import annotations
-
 from pathlib import Path
+import re
 
 # config.py -> ucap_etl -> src -> raíz del proyecto
 RAIZ_PROYECTO = Path(__file__).resolve().parents[2]
@@ -30,3 +30,7 @@ ETIQUETA_CODIGO = "CODIGO"
 ETIQUETA_DESCRIPCION = "DESCRIPCION"
 ETIQUETA_COLOCAR = "COLOCAR"
 ETIQUETA_QUITAR = "QUITAR"
+
+
+RE_TIPO_DOCUMENTO = re.compile(r"^(SS|SN)$", re.IGNORECASE)
+RE_NUMERO_DOCUMENTO = re.compile(r"^\d{4,10}$")

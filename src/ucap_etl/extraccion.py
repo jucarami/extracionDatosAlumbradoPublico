@@ -10,7 +10,10 @@ from .config import (
     ETIQUETA_COLOCAR,
     ETIQUETA_DESCRIPCION,
     ETIQUETA_QUITAR,
+    RE_NUMERO_DOCUMENTO,
+    RE_TIPO_DOCUMENTO,
 )
+from .modelos import ContextoPagina
 from .texto import limpiar_celda, quitar_tildes
 
 Tabla = list[list[str]]
@@ -77,3 +80,41 @@ def localizar_encabezado(tabla: Tabla) -> tuple[int | None, MapaColumnas | None]
             return indice, mapa
 
     return None, None
+
+
+def extraer_contexto(tabla: Tabla) -> ContextoPagina:
+    """Obtiene proyecto, tipo (SS/SN) y número del encabezado de la hoja.
+
+    Recorre las celdas buscando la etiqueta 'Proyecto' y el literal SS/SN.
+    El nombre del proyecto es la primera celda no vacía a la derecha de la
+    etiqueta; el número, la primera celda a la derecha del tipo que cumpla
+    el patrón de documento.
+    """
+    proyecto = ""
+    tipo = ""
+    numero = ""
+
+    for fila in tabla:
+        for j, celda in enumerate(fila):
+            if not proyecto and quitar_tildes(celda).upper().startswith("PROYECTO"):
+                for k in range(j + 1, len(fila)):
+                    candidato = fila[k]
+                    if candidato and not RE_TIPO_DOCUMENTO.match(candidato):
+                        proyecto = candidato
+                        break
+
+            if not tipo and RE_TIPO_DOCUMENTO.match(celda):
+                tipo = celda.upper()
+                for k in range(j + 1, len(fila)):
+                    if RE_NUMERO_DOCUMENTO.match(fila[k]):
+                        numero = fila[k]
+                        break
+
+        if proyecto and tipo and numero:
+            break
+
+    return ContextoPagina(
+        proyecto=proyecto.strip(" ,;"),
+        tipo=tipo,
+        numero=numero,
+    )
