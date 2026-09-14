@@ -19,7 +19,20 @@ from .texto import limpiar_celda, quitar_tildes
 Tabla = list[list[str]]
 MapaColumnas = dict[str, int]
 
+def _tiene_filas_mutiladas(tabla: Tabla) -> bool:
+    """True si alguna fila trae cantidad pero perdió código y descripción.
 
+    Es el síntoma de que a la cuadrícula del PDF le faltó un borde y
+    pdfplumber descartó el texto de las celdas que quedaron sin cerrar.
+    """
+    for fila in tabla:
+        if len(fila) < 4:
+            continue
+        sin_identificacion = not fila[0] and not fila[1]
+        con_cantidad = bool(fila[2]) or bool(fila[3])
+        if sin_identificacion and con_cantidad:
+            return True
+    return False
 
 def detectar_tabla(pagina) -> Tabla | None:
     """Devuelve la tabla de la página como matriz de strings limpios.
@@ -40,6 +53,14 @@ def detectar_tabla(pagina) -> Tabla | None:
         )
         if tiene_firma and (mejor is None or len(tabla) > len(mejor)):
             mejor = tabla
+
+    if mejor is None:
+        return _tabla_por_coordenadas(pagina)
+
+    if _tiene_filas_mutiladas(mejor):
+        respaldo = _tabla_por_coordenadas(pagina)
+        if respaldo is not None and not _tiene_filas_mutiladas(respaldo):
+            return respaldo
 
     return mejor
 
@@ -112,7 +133,7 @@ def extraer_contexto(tabla: Tabla) -> ContextoPagina:
 
         if proyecto and tipo and numero:
             break
-
+            
     return ContextoPagina(
         proyecto=proyecto.strip(" ,;"),
         tipo=tipo,
@@ -120,20 +141,23 @@ def extraer_contexto(tabla: Tabla) -> ContextoPagina:
     )
     
 def _columnas_de_pagina(pagina, tolerancia: int = 3) -> list[float] | None:
-    """Deduce los cortes de columna de las líneas verticales del PDF.
+    """Deduce los cortes de columna de la geometría del PDF.
 
-    Las coordenadas varían uno o dos puntos entre páginas, así que las
-    cercanas se agrupan en un solo corte.
+    Algunas páginas dibujan la cuadrícula con líneas y otras solo con
+    rectángulos, así que se consideran ambas fuentes. Las coordenadas varían
+    uno o dos puntos entre páginas, de modo que las cercanas se agrupan en
+    un solo corte.
     """
-    if not pagina.lines:
-        return None
+    xs = set()
+    for objeto in list(pagina.lines) + list(pagina.rects):
+        xs.add(round(objeto["x0"]))
+        xs.add(round(objeto["x1"]))
 
-    xs = sorted({round(l["x0"]) for l in pagina.lines} | {round(l["x1"]) for l in pagina.lines})
     if not xs:
         return None
 
-    cortes = [xs[0]]
-    for x in xs[1:]:
+    cortes = [min(xs)]
+    for x in sorted(xs):
         if x - cortes[-1] > tolerancia:
             cortes.append(x)
 

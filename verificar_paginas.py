@@ -1,36 +1,41 @@
 import sys
 sys.path.insert(0, "src")
 
+from collections import Counter
+
 import pdfplumber
 
-RUTA = "data/raw/Tabla 1 al 331_2026.pdf"
+from ucap_etl.modelos import ContextoPagina
+from ucap_etl.paginas import procesar_pagina
 
+RUTAS = [
+    "data/raw/Tablas 1 al 392_2025.pdf",
+    "data/raw/Tabla 1 al 331_2026.pdf",
+]
 
-# ============================================================
-# PARTE 1: dónde cae cada palabra de la página 40
-# ============================================================
-print("=" * 60)
-print("PARTE 1: palabras de la página 40 con su posición")
-print("=" * 60)
+for ruta in RUTAS:
+    nombre = ruta.split("/")[-1]
+    total_registros = 0
+    incidencias = []
+    movimientos = Counter()
+    sin_codigo = 0
+    contexto = ContextoPagina()
 
-with pdfplumber.open(RUTA) as pdf:
-    p = pdf.pages[39]
-    for w in p.extract_words():
-        print(f"top={w['top']:7.1f}  x0={w['x0']:7.1f}  {w['text']!r}")
+    with pdfplumber.open(ruta) as pdf:
+        for n, pagina in enumerate(pdf.pages, start=1):
+            r = procesar_pagina(pagina, n, nombre, contexto)
+            contexto = r.contexto
+            total_registros += len(r.registros)
+            incidencias.extend(r.incidencias)
+            for reg in r.registros:
+                movimientos[reg.movimiento] += 1
+                if not reg.codigo:
+                    sin_codigo += 1
 
-
-# ============================================================
-# PARTE 2: las coordenadas de columna son iguales en todas?
-# ============================================================
-print()
-print("=" * 60)
-print("PARTE 2: líneas verticales por página")
-print("=" * 60)
-
-with pdfplumber.open(RUTA) as pdf:
-    for n in (1, 40, 50, 150, 300):
-        p = pdf.pages[n - 1]
-        xs = sorted(
-            {round(l["x0"]) for l in p.lines} | {round(l["x1"]) for l in p.lines}
-        )
-        print(f"pág {n:4}  verticales: {xs}")
+    print(f"\n===== {nombre} =====")
+    print(f"Registros extraídos: {total_registros}")
+    print(f"Sin código UCAP:     {sin_codigo}")
+    print(f"Movimientos:         {dict(movimientos)}")
+    print(f"Incidencias:         {len(incidencias)}")
+    for linea in incidencias[:30]:
+        print("   ", linea)
