@@ -106,22 +106,28 @@ def localizar_encabezado(tabla: Tabla) -> tuple[int | None, MapaColumnas | None]
 def extraer_contexto(tabla: Tabla) -> ContextoPagina:
     """Obtiene proyecto, tipo (SS/SN) y número del encabezado de la hoja.
 
-    Recorre las celdas buscando la etiqueta 'Proyecto' y el literal SS/SN.
-    El nombre del proyecto es la primera celda no vacía a la derecha de la
-    etiqueta; el número, la primera celda a la derecha del tipo que cumpla
-    el patrón de documento.
+    Cuando el nombre del proyecto no cabe en una línea, el respaldo por
+    coordenadas lo parte en dos filas: la continuación queda junto a la
+    etiqueta 'Proyecto:' y el inicio en la fila anterior. Se reconstruye
+    uniendo ambas.
     """
     proyecto = ""
     tipo = ""
     numero = ""
+    fila_proyecto = -1
+    columna_proyecto = -1
 
-    for fila in tabla:
+    for i, fila in enumerate(tabla):
         for j, celda in enumerate(fila):
             if not proyecto and quitar_tildes(celda).upper().startswith("PROYECTO"):
                 for k in range(j + 1, len(fila)):
                     candidato = fila[k]
-                    if candidato and not RE_TIPO_DOCUMENTO.match(candidato):
+                    if (candidato 
+                     and not RE_TIPO_DOCUMENTO.match(candidato)
+                     and not RE_NUMERO_DOCUMENTO.match(candidato)):
                         proyecto = candidato
+                        fila_proyecto = i
+                        columna_proyecto = k
                         break
 
             if not tipo and RE_TIPO_DOCUMENTO.match(celda):
@@ -133,7 +139,16 @@ def extraer_contexto(tabla: Tabla) -> ContextoPagina:
 
         if proyecto and tipo and numero:
             break
-            
+
+    # El nombre pudo partirse en dos filas: la anterior lleva el inicio.
+    if fila_proyecto > 0 and columna_proyecto >= 0:
+        anterior = tabla[fila_proyecto - 1]
+        if columna_proyecto < len(anterior):
+            inicio = anterior[columna_proyecto]
+            resto = [c for k, c in enumerate(anterior) if k != columna_proyecto and c]
+            if inicio and not resto and inicio.rstrip().endswith("-"):
+                proyecto = f"{inicio.rstrip()} {proyecto}"
+
     return ContextoPagina(
         proyecto=proyecto.strip(" ,;"),
         tipo=tipo,
