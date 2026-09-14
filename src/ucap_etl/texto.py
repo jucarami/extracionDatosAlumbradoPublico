@@ -9,7 +9,7 @@ _PUNTO_FINAL = re.compile(r"\s*\.\s*$")
 _PUNTO_ABREVIATURA = re.compile(r"(?<=[A-Z])\.(?=\s|$)")
 _CODIGO_UCAP = re.compile(r"^[A-Z]?\d{5,14}(-\d+)?$")
 _PREFIJO_UCAP = re.compile(r"^UCAP\b\s*")
-
+_ANIO = re.compile(r"(20\d{2})")
 
 def limpiar_celda(valor: object) -> str:
     """Normaliza una celda cruda de pdfplumber a un str sin ruido."""
@@ -101,4 +101,17 @@ def normalizar_descripcion(texto: str) -> str:
     t = _PUNTO_FINAL.sub("", t)
     t = _PUNTO_ABREVIATURA.sub(" ", t)
     return _ESPACIOS.sub(" ", t).strip()
+
+def extraer_anio(nombre_archivo: str) -> str:
+    """Año al que pertenece el documento, tomado del nombre del PDF.
+
+    Es una convención de nombrado, no un dato del formato: si el archivo no
+    lo trae, se devuelve vacío y el pipeline lo reporta como incidencia en
+    vez de asumir un año.
+
+    >>> extraer_anio("Tablas 1 al 392_2025.pdf")
+    '2025'
+    """
+    coincidencia = _ANIO.search(nombre_archivo)
+    return coincidencia.group(1) if coincidencia else ""
 

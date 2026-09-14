@@ -12,6 +12,7 @@ DIR_LOGS = RAIZ_PROYECTO / "logs"
 
 #: Orden exacto de columnas del CSV histórico. No reordenar sin migrar el CSV.
 COLUMNAS_SALIDA: tuple[str, ...] = (
+    "Anio",
     "Pagina",
     "Tipo",
     "SS/SN",

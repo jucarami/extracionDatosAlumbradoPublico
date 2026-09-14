@@ -38,6 +38,7 @@ class RegistroUCAP:
     """Una línea de detalle del formato UCAP."""
 
     pagina: int
+    anio: str
     contexto: ContextoPagina
     codigo: str
     descripcion: str
@@ -81,6 +82,7 @@ class RegistroUCAP:
     def a_dict(self) -> dict[str, object]:
         """Proyecta el registro al esquema del CSV."""
         return {
+            "Anio": self.anio,
             "Pagina": self.pagina,
             "Tipo": self.contexto.tipo,
             "SS/SN": self.contexto.numero,

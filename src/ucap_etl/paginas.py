@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from .extraccion import detectar_tabla, extraer_contexto, localizar_encabezado
 from .modelos import ContextoPagina, RegistroUCAP
-from .texto import construir_fuente, es_codigo_ucap, parsear_cantidad
+from .texto import construir_fuente, es_codigo_ucap, extraer_anio, parsear_cantidad
 
 
 @dataclass
@@ -74,6 +74,13 @@ def procesar_pagina(
 
     resultado.contexto = contexto
     fuente = construir_fuente(nombre_archivo, numero_pagina)
+    
+    anio = extraer_anio(nombre_archivo)
+    if not anio:
+        resultado.incidencias.append(
+            f"pág {numero_pagina}: no se pudo determinar el año desde "
+            f"el nombre del archivo {nombre_archivo!r}"
+        )
 
     for fila in tabla[indice_encabezado + 1:]:
         codigo_crudo = _leer(fila, mapa, "codigo")
@@ -99,6 +106,7 @@ def procesar_pagina(
 
         registro = RegistroUCAP(
             pagina=numero_pagina,
+            anio=anio,
             contexto=contexto,
             codigo=codigo,
             descripcion=descripcion,

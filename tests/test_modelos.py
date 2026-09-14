@@ -27,6 +27,7 @@ def _registro(codigo="5200272", colocar=16, quitar=None,
     """Fábrica de registros para las pruebas: cambia solo lo que importa."""
     return RegistroUCAP(
         pagina=1,
+        anio="2025",
         contexto=ContextoPagina(proyecto="SMAP 299", tipo="SN", numero="193679"),
         codigo=codigo,
         descripcion=descripcion,
@@ -107,3 +108,6 @@ def test_a_dict_conserva_descripcion_cruda():
     d = _registro(descripcion="UCAP POSTE CONCRETO REDONDO 12M").a_dict()
     assert d["Descripcion UCAP"] == "UCAP POSTE CONCRETO REDONDO 12M"
     assert d["Descripcion Normalizada"] == "POSTE CONCRETO REDONDO 12M"
+    
+def test_a_dict_incluye_el_anio():
+    assert _registro().a_dict()["Anio"] == "2025"

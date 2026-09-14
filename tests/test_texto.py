@@ -2,10 +2,12 @@ import pytest
 
 from ucap_etl.texto import (
     es_codigo_ucap,
+    extraer_anio,
     limpiar_celda,
     normalizar_descripcion,
     parsear_cantidad,
     quitar_tildes,
+    extraer_anio,
 )
 
 
@@ -88,3 +90,15 @@ def test_cantidad_vacia_no_es_cero():
 )
 def test_es_codigo_ucap(entrada, esperado):
     assert es_codigo_ucap(entrada) is esperado
+    
+@pytest.mark.parametrize(
+    "entrada,esperado",
+    [
+        ("Tablas 1 al 392_2025.pdf", "2025"),
+        ("Tabla 1 al 331_2026.pdf", "2026"),
+        ("consolidado.pdf", ""),
+        ("UCAPs 1 al 100.pdf", ""),
+    ],
+)
+def test_extraer_anio(entrada, esperado):
+    assert extraer_anio(entrada) == esperado
