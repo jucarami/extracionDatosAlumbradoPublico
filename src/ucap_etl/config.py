@@ -25,6 +25,15 @@ COLUMNAS_SALIDA: tuple[str, ...] = (
     "Clave Consolidacion",
 )
 
+#: Columnas que identifican una fila ya cargada (deduplicación en modo append).
+CLAVE_DEDUPLICACION: tuple[str, ...] = (
+    "Fuente",
+    "Clave Consolidacion",
+    "Descripcion UCAP",
+    "Colocar",
+    "Quitar",
+)
+
 #: Etiquetas del encabezado de columnas, ya sin tildes y en mayúsculas.
 ETIQUETA_CODIGO = "CODIGO"
 ETIQUETA_DESCRIPCION = "DESCRIPCION"
