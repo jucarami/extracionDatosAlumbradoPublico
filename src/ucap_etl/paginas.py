@@ -109,8 +109,9 @@ def procesar_pagina(
 
         if registro.movimiento == "NULO":
             resultado.incidencias.append(
-                f"pág {numero_pagina}: '{descripcion}' sin cantidad en ninguna columna"
+                f"pág {numero_pagina}: '{descripcion}' se descarta porque no tiene cantidad de colocar ni quitar"
             )
+            continue
 
         resultado.registros.append(registro)
 
