@@ -118,3 +118,62 @@ def extraer_contexto(tabla: Tabla) -> ContextoPagina:
         tipo=tipo,
         numero=numero,
     )
+    
+def _columnas_de_pagina(pagina, tolerancia: int = 3) -> list[float] | None:
+    """Deduce los cortes de columna de las líneas verticales del PDF.
+
+    Las coordenadas varían uno o dos puntos entre páginas, así que las
+    cercanas se agrupan en un solo corte.
+    """
+    if not pagina.lines:
+        return None
+
+    xs = sorted({round(l["x0"]) for l in pagina.lines} | {round(l["x1"]) for l in pagina.lines})
+    if not xs:
+        return None
+
+    cortes = [xs[0]]
+    for x in xs[1:]:
+        if x - cortes[-1] > tolerancia:
+            cortes.append(x)
+
+    return [float(x) for x in cortes] if len(cortes) >= 4 else None
+
+def _filas_de_pagina(pagina, margen: float = 7.0) -> list[float] | None:
+    """Deduce los cortes de fila a partir del top de cada palabra.
+
+    Cada fila del formato ocupa una banda vertical propia, así que basta
+    con tomar los tops distintos y abrir un margen arriba y abajo.
+    """
+    tops = sorted({round(w["top"], 1) for w in pagina.extract_words()})
+    if len(tops) < 2:
+        return None
+    return [t - margen for t in tops] + [tops[-1] + margen]
+
+def _tabla_por_coordenadas(pagina) -> Tabla | None:
+    """Reconstruye la tabla usando cortes explícitos de fila y columna.
+
+    Necesario cuando al formato le falta algún borde de celda: pdfplumber
+    descarta el texto de las celdas que no quedan cerradas, y así se pierden
+    filas completas que sí están en el documento.
+    """
+    columnas = _columnas_de_pagina(pagina)
+    filas = _filas_de_pagina(pagina)
+    if not columnas or not filas:
+        return None
+
+    cfg = {
+        "vertical_strategy": "explicit",
+        "explicit_vertical_lines": columnas,
+        "horizontal_strategy": "explicit",
+        "explicit_horizontal_lines": filas,
+    }
+    try:
+        tablas = pagina.extract_tables(cfg)
+    except Exception:
+        return None
+
+    for cruda in tablas or []:
+        if cruda:
+            return [[limpiar_celda(c) for c in fila] for fila in cruda]
+    return None
