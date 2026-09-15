@@ -120,6 +120,8 @@ def extraer_contexto(tabla: Tabla) -> ContextoPagina:
     for i, fila in enumerate(tabla):
         for j, celda in enumerate(fila):
             if not proyecto and quitar_tildes(celda).upper().startswith("PROYECTO"):
+                if fila_proyecto < 0:
+                    fila_proyecto = i
                 for k in range(j + 1, len(fila)):
                     candidato = fila[k]
                     if (candidato 
@@ -140,15 +142,34 @@ def extraer_contexto(tabla: Tabla) -> ContextoPagina:
         if proyecto and tipo and numero:
             break
 
-    # El nombre pudo partirse en dos filas: la anterior lleva el inicio.
-    if fila_proyecto > 0 and columna_proyecto >= 0:
-        anterior = tabla[fila_proyecto - 1]
-        if columna_proyecto < len(anterior):
-            inicio = anterior[columna_proyecto]
-            resto = [c for k, c in enumerate(anterior) if k != columna_proyecto and c]
-            if inicio and not resto and inicio.rstrip().endswith("-"):
-                proyecto = f"{inicio.rstrip()} {proyecto}"
+        if proyecto and tipo and numero:
+            break
 
+    # El nombre pudo partirse: el inicio queda en la fila anterior (marcado con
+    # guión final) y la continuación junto a la etiqueta o una fila más abajo.
+    if fila_proyecto > 0:
+        columna = columna_proyecto if columna_proyecto >= 0 else 1
+        anterior = tabla[fila_proyecto - 1]
+
+        if columna < len(anterior):
+            inicio = anterior[columna].rstrip()
+            resto = [c for k, c in enumerate(anterior) if k != columna and c]
+
+            if inicio and not resto and inicio.endswith("-"):
+                if not proyecto and fila_proyecto + 1 < len(tabla):
+                    siguiente = tabla[fila_proyecto + 1]
+                    if columna < len(siguiente):
+                        cola = siguiente[columna]
+                        otros = [c for k, c in enumerate(siguiente) if k != columna and c]
+                        if cola and not otros:
+                            proyecto = cola
+                proyecto = f"{inicio} {proyecto}".strip()
+
+    return ContextoPagina(
+        proyecto=proyecto.strip(" ,;"),
+        tipo=tipo,
+        numero=numero,
+    )
     return ContextoPagina(
         proyecto=proyecto.strip(" ,;"),
         tipo=tipo,
