@@ -60,16 +60,17 @@ def procesar_pagina(
     extiende a una segunda hoja sin repetir la cabecera.
     """
     resultado = ResultadoPagina(contexto=contexto_previo)
+    etiqueta = f"{nombre_archivo} pág {numero_pagina}"
 
     tabla = detectar_tabla(pagina)
     if tabla is None:
-        resultado.incidencias.append(f"pág {numero_pagina}: no se detectó tabla")
+        resultado.incidencias.append(f"{etiqueta}: no se detectó tabla")
         return resultado
 
     indice_encabezado, mapa = localizar_encabezado(tabla)
     if indice_encabezado is None or mapa is None:
         resultado.incidencias.append(
-            f"pág {numero_pagina}: no se detectó la fila de encabezados"
+            f"{etiqueta}: no se detectó la fila de encabezados"
         )
         return resultado
 
@@ -78,22 +79,22 @@ def procesar_pagina(
     if _debe_heredar(contexto, contexto_previo):
         contexto = contexto_previo
         resultado.incidencias.append(
-            f"pág {numero_pagina}: sin encabezado propio, hereda {contexto.documento}"
+            f"{etiqueta}: sin encabezado propio, hereda {contexto.documento}"
         )
     elif not contexto.esta_completo:
         resultado.incidencias.append(
-            f"pág {numero_pagina}: encabezado incompleto "
+            f"{etiqueta}: encabezado incompleto "
             f"(proyecto={contexto.proyecto!r}, tipo={contexto.tipo!r}, "
             f"numero={contexto.numero!r})"
         )
 
     resultado.contexto = contexto
     fuente = construir_fuente(nombre_archivo, numero_pagina)
-    
+
     anio = extraer_anio(nombre_archivo)
     if not anio:
         resultado.incidencias.append(
-            f"pág {numero_pagina}: no se pudo determinar el año desde "
+            f"{etiqueta}: no se pudo determinar el año desde "
             f"el nombre del archivo {nombre_archivo!r}"
         )
 
@@ -108,14 +109,14 @@ def procesar_pagina(
 
         if not codigo_crudo and not descripcion:
             resultado.incidencias.append(
-                f"pág {numero_pagina}: fila con cantidad pero sin descripción ni código"
+                f"{etiqueta}: fila con cantidad pero sin descripción ni código"
             )
             continue
 
         codigo = codigo_crudo if es_codigo_ucap(codigo_crudo) else ""
         if codigo_crudo and not codigo:
             resultado.incidencias.append(
-                f"pág {numero_pagina}: código no reconocido {codigo_crudo!r} "
+                f"{etiqueta}: código no reconocido {codigo_crudo!r} "
                 f"en '{descripcion}'"
             )
 
@@ -132,13 +133,14 @@ def procesar_pagina(
 
         if registro.movimiento == "NULO":
             resultado.incidencias.append(
-                f"pág {numero_pagina}: '{descripcion}' se descarta porque no tiene cantidad de colocar ni quitar"
+                f"{etiqueta}: '{descripcion}' se descarta porque no tiene "
+                f"cantidad de colocar ni quitar"
             )
             continue
 
         resultado.registros.append(registro)
 
     if not resultado.registros:
-        resultado.incidencias.append(f"pág {numero_pagina}: 0 registros extraídos")
+        resultado.incidencias.append(f"{etiqueta}: 0 registros extraídos")
 
     return resultado
