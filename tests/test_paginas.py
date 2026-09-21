@@ -1,5 +1,5 @@
 from ucap_etl.modelos import ContextoPagina
-from ucap_etl.paginas import ResultadoPagina, _es_fila_de_relleno, _leer
+from ucap_etl.paginas import ResultadoPagina,_debe_heredar,_es_fila_de_relleno, _leer
 
 
 # --------------------------------------------------- _leer
@@ -52,3 +52,26 @@ def test_resultados_no_comparten_listas():
     b = ResultadoPagina()
     a.registros.append("x")
     assert b.registros == []
+    
+
+# --------------------------------------------------- _debe_heredar
+
+PREVIO = ContextoPagina(proyecto="Anterior", tipo="SS", numero="1279840")
+
+
+def test_no_hereda_si_tiene_numero_propio():
+    """Telegestión: nombre partido no leído, pero el número es propio."""
+    assert _debe_heredar(ContextoPagina(tipo="SS", numero="1359705"), PREVIO) is False
+
+
+def test_no_hereda_si_tiene_proyecto_propio():
+    """Página 98: número inválido en el origen, pero es otro documento."""
+    assert _debe_heredar(ContextoPagina(proyecto="Unidad Belen", tipo="SS"), PREVIO) is False
+
+
+def test_hereda_si_no_trae_encabezado():
+    assert _debe_heredar(ContextoPagina(), PREVIO) is True
+
+
+def test_no_hereda_si_el_previo_esta_incompleto():
+    assert _debe_heredar(ContextoPagina(), ContextoPagina()) is False

@@ -32,6 +32,21 @@ def _leer(fila: list[str], mapa: dict[str, int], clave: str) -> str:
     indice = mapa[clave]
     return fila[indice] if indice < len(fila) else ""
 
+
+def _debe_heredar(contexto: ContextoPagina, previo: ContextoPagina) -> bool:
+    """Una página hereda el encabezado anterior solo si no trae ni proyecto
+    ni número propios.
+
+    Si trae cualquiera de los dos es un documento distinto, y sus datos
+    faltantes se reportan, nunca se rellenan con los de otra hoja. Casos
+    reales que fijan la regla:
+      - Telegestión (validación 2026, pág 132): nombre partido que no se leyó
+        completo, pero con número propio. No hereda.
+      - Página 98 de 2026: proyecto propio y número en cero en el origen.
+        No hereda; se reporta como encabezado incompleto.
+    """
+    return not contexto.proyecto and not contexto.numero and previo.esta_completo
+
 def procesar_pagina(
     pagina,
     numero_pagina: int,
@@ -60,7 +75,7 @@ def procesar_pagina(
 
     contexto = extraer_contexto(tabla[: indice_encabezado + 1])
 
-    if not contexto.proyecto and not contexto.numero and contexto_previo.esta_completo:
+    if _debe_heredar(contexto, contexto_previo):
         contexto = contexto_previo
         resultado.incidencias.append(
             f"pág {numero_pagina}: sin encabezado propio, hereda {contexto.documento}"
