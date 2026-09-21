@@ -13,6 +13,7 @@ import pdfplumber
 from .config import CLAVE_DEDUPLICACION, COLUMNAS_SALIDA
 from .modelos import ContextoPagina
 from .paginas import procesar_pagina
+from .texto import quitar_tildes
 
 log = logging.getLogger(__name__)
 
@@ -123,6 +124,88 @@ def fusionar_con_historico(nuevos: pd.DataFrame, ruta_csv: Path) -> pd.DataFrame
     log.info("Append: %d filas, %d tras deduplicar", antes, len(combinados))
     return combinados
 
+def _archivo_de_fuente(fuente: str) -> str:
+    """'Tablas 1 al 392_2025.pdf, pagina 7' -> 'Tablas 1 al 392_2025.pdf'."""
+    return str(fuente).rsplit(", pagina", 1)[0]
+
+
+def _proyecto_comparable(texto: object) -> str:
+    """Nombre de proyecto normalizado para comparar entre páginas."""
+    t = quitar_tildes(str(texto or "")).upper()
+    return " ".join(t.replace(",", " ").split())
+
+
+def resolver_paginas_duplicadas(
+    datos: pd.DataFrame,
+) -> tuple[pd.DataFrame, list[str]]:
+    """Cuando un mismo documento aparece en varias páginas del mismo archivo,
+    conserva la página con mayor suma de Colocar.
+
+    Duplicado significa mismo SS/SN y mismo proyecto dentro de un archivo.
+    Cada archivo se evalúa solo contra sí mismo.
+
+    Si un SS/SN se repite con proyectos distintos no es duplicación sino un
+    probable error de digitación del número: se conservan todas las páginas
+    y se reporta para corregirlo en el origen.
+
+    En empate gana la página de menor número. Cada descarte queda reportado.
+    """
+    if datos.empty:
+        return datos, []
+
+    trabajo = datos.copy()
+    trabajo["_archivo"] = trabajo["Fuente"].map(_archivo_de_fuente)
+    trabajo["_pagina"] = pd.to_numeric(trabajo["Pagina"], errors="coerce")
+    trabajo["_colocar"] = pd.to_numeric(trabajo["Colocar"], errors="coerce").fillna(0)
+    trabajo["_proyecto"] = trabajo["Proyecto"].map(_proyecto_comparable)
+
+    con_numero = trabajo["SS/SN"].fillna("").astype(str).str.strip() != ""
+
+    por_pagina = (
+        trabajo[con_numero]
+        .groupby(["_archivo", "SS/SN", "_proyecto", "_pagina"], as_index=False)
+        .agg(colocar=("_colocar", "sum"), items=("_colocar", "size"))
+    )
+
+    incidencias: list[str] = []
+
+    # Mismo número con proyectos distintos: se reporta, no se toca.
+    for (archivo, documento), grupo in por_pagina.groupby(["_archivo", "SS/SN"]):
+        if grupo["_proyecto"].nunique() > 1:
+            paginas = ", ".join(str(int(p)) for p in sorted(grupo["_pagina"]))
+            incidencias.append(
+                f"{archivo}: el documento {documento} aparece con proyectos "
+                f"distintos en las págs {paginas}; posible error de digitación "
+                f"del número, se conservan todas"
+            )
+
+    # Mismo número y mismo proyecto: se conserva la de mayor Colocar.
+    descartar: set[tuple[str, float]] = set()
+    for (archivo, documento, _), grupo in por_pagina.groupby(
+        ["_archivo", "SS/SN", "_proyecto"]
+    ):
+        if len(grupo) < 2:
+            continue
+        orden = grupo.sort_values(["colocar", "_pagina"], ascending=[False, True])
+        ganadora = orden.iloc[0]
+        for _, perdedora in orden.iloc[1:].iterrows():
+            descartar.add((archivo, perdedora["_pagina"]))
+            incidencias.append(
+                f"{archivo} pág {int(perdedora['_pagina'])}: se descarta por duplicar "
+                f"el documento {documento} ({int(perdedora['items'])} ítems, "
+                f"colocar {perdedora['colocar']:g}); se conserva la pág "
+                f"{int(ganadora['_pagina'])} ({int(ganadora['items'])} ítems, "
+                f"colocar {ganadora['colocar']:g})"
+            )
+
+    if not descartar:
+        return datos, incidencias
+
+    mascara = [
+        (archivo, pagina) not in descartar
+        for archivo, pagina in zip(trabajo["_archivo"], trabajo["_pagina"])
+    ]
+    return datos[mascara].reset_index(drop=True), incidencias
 
 def ejecutar(
     rutas: list[Path],
@@ -133,11 +216,14 @@ def ejecutar(
     """Punto de entrada del pipeline completo."""
     resultado = extraer_lote(rutas, cantidades_en_cero)
 
+    depurados, descartes = resolver_paginas_duplicadas(resultado.datos)
+    incidencias = resultado.incidencias + descartes
+
     datos = (
-        fusionar_con_historico(resultado.datos, ruta_salida)
+        fusionar_con_historico(depurados, ruta_salida)
         if modo_append
-        else a_texto_csv(resultado.datos)
+        else a_texto_csv(depurados)
     )
 
     escribir_csv(datos, ruta_salida)
-    return ResultadoExtraccion(datos=datos, incidencias=resultado.incidencias)
+    return ResultadoExtraccion(datos=datos, incidencias=incidencias)
