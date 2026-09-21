@@ -44,3 +44,12 @@ ETIQUETA_QUITAR = "QUITAR"
 
 RE_TIPO_DOCUMENTO = re.compile(r"^(SS|SN)$", re.IGNORECASE)
 RE_NUMERO_DOCUMENTO = re.compile(r"^\d{4,10}$")
+
+
+#: Líneas fijas del título del formato. Nunca hacen parte del nombre del proyecto.
+TITULOS_FORMATO: frozenset[str] = frozenset({
+    "EMPRESAS PUBLICAS DE MEDELLIN",
+    "UNIDAD ALUMBRADO",
+    "UCAP AP",
+    "EMPRESAS PUBLICAS DE MEDELLIN UNIDAD ALUMBRADO UCAP AP",
+})

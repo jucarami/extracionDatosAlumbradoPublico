@@ -12,6 +12,7 @@ from .config import (
     ETIQUETA_QUITAR,
     RE_NUMERO_DOCUMENTO,
     RE_TIPO_DOCUMENTO,
+    TITULOS_FORMATO,
 )
 from .modelos import ContextoPagina
 from .texto import limpiar_celda, quitar_tildes
@@ -102,14 +103,18 @@ def localizar_encabezado(tabla: Tabla) -> tuple[int | None, MapaColumnas | None]
 
     return None, None
 
+def _es_titulo(texto: str) -> bool:
+    """True si el texto es una de las líneas fijas del título del formato."""
+    return quitar_tildes(texto).upper().strip() in TITULOS_FORMATO
+
 
 def extraer_contexto(tabla: Tabla) -> ContextoPagina:
     """Obtiene proyecto, tipo (SS/SN) y número del encabezado de la hoja.
 
     Cuando el nombre del proyecto no cabe en una línea, el respaldo por
-    coordenadas lo parte en dos filas: la continuación queda junto a la
-    etiqueta 'Proyecto:' y el inicio en la fila anterior. Se reconstruye
-    uniendo ambas.
+    coordenadas lo parte en varias filas: el inicio queda arriba de la
+    etiqueta 'Proyecto:' y la continuación junto a ella o una fila más abajo.
+    Se reconstruye uniendo los fragmentos que estén solos en su fila.
     """
     proyecto = ""
     tipo = ""
@@ -124,9 +129,11 @@ def extraer_contexto(tabla: Tabla) -> ContextoPagina:
                     fila_proyecto = i
                 for k in range(j + 1, len(fila)):
                     candidato = fila[k]
-                    if (candidato 
-                     and not RE_TIPO_DOCUMENTO.match(candidato)
-                     and not RE_NUMERO_DOCUMENTO.match(candidato)):
+                    if (
+                        candidato
+                        and not RE_TIPO_DOCUMENTO.match(candidato)
+                        and not RE_NUMERO_DOCUMENTO.match(candidato)
+                    ):
                         proyecto = candidato
                         fila_proyecto = i
                         columna_proyecto = k
@@ -142,34 +149,33 @@ def extraer_contexto(tabla: Tabla) -> ContextoPagina:
         if proyecto and tipo and numero:
             break
 
-        if proyecto and tipo and numero:
-            break
-
-    # El nombre pudo partirse: el inicio queda en la fila anterior (marcado con
-    # guión final) y la continuación junto a la etiqueta o una fila más abajo.
+    # El nombre pudo partirse en varias filas alrededor de la etiqueta: el
+    # inicio arriba y la continuación abajo, con o sin guión de corte.
     if fila_proyecto > 0:
         columna = columna_proyecto if columna_proyecto >= 0 else 1
-        anterior = tabla[fila_proyecto - 1]
+        partes = []
 
+        anterior = tabla[fila_proyecto - 1]
         if columna < len(anterior):
             inicio = anterior[columna].rstrip()
-            resto = [c for k, c in enumerate(anterior) if k != columna and c]
+            otros = [c for k, c in enumerate(anterior) if k != columna and c]
+            if inicio and not otros and not _es_titulo(inicio):
+                partes.append(inicio)
 
-            if inicio and not resto and inicio.endswith("-"):
-                if not proyecto and fila_proyecto + 1 < len(tabla):
-                    siguiente = tabla[fila_proyecto + 1]
-                    if columna < len(siguiente):
-                        cola = siguiente[columna]
-                        otros = [c for k, c in enumerate(siguiente) if k != columna and c]
-                        if cola and not otros:
-                            proyecto = cola
-                proyecto = f"{inicio} {proyecto}".strip()
+        if proyecto:
+            partes.append(proyecto)
 
-    return ContextoPagina(
-        proyecto=proyecto.strip(" ,;"),
-        tipo=tipo,
-        numero=numero,
-    )
+        if fila_proyecto + 1 < len(tabla):
+            siguiente = tabla[fila_proyecto + 1]
+            if columna < len(siguiente):
+                cola = siguiente[columna]
+                otros = [c for k, c in enumerate(siguiente) if k != columna and c]
+                if cola and not otros and not _es_titulo(cola):
+                    partes.append(cola)
+
+        if len(partes) > 1 or (partes and not proyecto):
+            proyecto = " ".join(partes)
+
     return ContextoPagina(
         proyecto=proyecto.strip(" ,;"),
         tipo=tipo,

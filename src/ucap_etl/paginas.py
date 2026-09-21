@@ -60,7 +60,7 @@ def procesar_pagina(
 
     contexto = extraer_contexto(tabla[: indice_encabezado + 1])
 
-    if not contexto.proyecto and contexto_previo.esta_completo:
+    if not contexto.proyecto and not contexto.numero and contexto_previo.esta_completo:
         contexto = contexto_previo
         resultado.incidencias.append(
             f"pág {numero_pagina}: sin encabezado propio, hereda {contexto.documento}"
