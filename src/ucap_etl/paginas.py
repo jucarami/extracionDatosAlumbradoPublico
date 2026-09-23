@@ -112,6 +112,13 @@ def procesar_pagina(
                 f"{etiqueta}: fila con cantidad pero sin descripción ni código"
             )
             continue
+        
+        if codigo_crudo.strip() and " " in codigo_crudo.strip():
+            resultado.incidencias.append(
+                f"{etiqueta}: se descarta fila con ítems colapsados "
+                f"(código {codigo_crudo!r}, descripción '{descripcion}')"
+            )
+            continue
 
         codigo = codigo_crudo if es_codigo_ucap(codigo_crudo) else ""
         if codigo_crudo and not codigo:

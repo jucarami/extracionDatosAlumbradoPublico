@@ -1,0 +1,4 @@
+archivo,pagina,accion,campo,codigo_ucap,descripcion,colocar,quitar,valor,motivo,autorizado_por,fecha
+UCAP EN VALIDACION DE APROBACION_2026.pdf,245,agregar,,5200501,Caja Concreto directamente enterrada,6,,,Fila colapsada por bordes faltantes en el PDF,Camilo,2026-01-22
+UCAP EN VALIDACION DE APROBACION_2026.pdf,245,agregar,,5200502,Caja de concreto 50 x 50 cm,1,,,Fila colapsada por bordes faltantes en el PDF,Camilo,2026-01-22
+Tabla 1 al 331_2026.pdf,98,corregir,SS/SN,,,,,1289497,Numero de solicitud en cero en el formato original,Jhaan,2026-01-22

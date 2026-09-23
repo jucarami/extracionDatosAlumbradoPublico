@@ -21,19 +21,56 @@ Tabla = list[list[str]]
 MapaColumnas = dict[str, int]
 
 def _tiene_filas_mutiladas(tabla: Tabla) -> bool:
-    """True si alguna fila trae cantidad pero perdió código y descripción.
+    """True si alguna fila del detalle perdió texto por bordes faltantes.
 
-    Es el síntoma de que a la cuadrícula del PDF le faltó un borde y
-    pdfplumber descartó el texto de las celdas que quedaron sin cerrar.
+    Dos síntomas, ambos del mismo origen: a la cuadrícula del PDF le faltó un
+    borde y pdfplumber extendió una celda sobre las de abajo.
+
+      - Fila con cantidad pero sin código ni descripción: la celda quedó
+        abierta y se descartó su texto.
+      - Fila con código y cantidad pero sin descripción: el texto se apiló
+        en la celda de una fila anterior. En este formato todo ítem con
+        código tiene descripción.
     """
     for fila in tabla:
         if len(fila) < 4:
             continue
-        sin_identificacion = not fila[0] and not fila[1]
         con_cantidad = bool(fila[2]) or bool(fila[3])
-        if sin_identificacion and con_cantidad:
+        if not con_cantidad:
+            continue
+        if not fila[0] and not fila[1]:
+            return True
+        if fila[0] and not fila[1]:
             return True
     return False
+
+def _contar_filas_mutiladas(tabla: Tabla) -> int:
+    """Cuántas filas del detalle perdieron o mezclaron texto.
+
+    Dos síntomas de bordes faltantes en la cuadrícula del PDF:
+      - Fila con cantidad pero sin descripción: el texto se perdió o se apiló
+        en la celda de una fila anterior.
+      - Fila cuyo código contiene un espacio: dos ítems quedaron colapsados en
+        una sola fila. Un código UCAP nunca lleva espacios internos.
+
+    Solo cuenta a partir de la fila de encabezados, porque el respaldo por
+    coordenadas agrega filas de título arriba y contarlas falsearía la
+    comparación entre la tabla original y el respaldo.
+    """
+    indice, _ = localizar_encabezado(tabla)
+    if indice is None:
+        return 0
+
+    total = 0
+    for fila in tabla[indice + 1:]:
+        if len(fila) < 4:
+            continue
+        con_cantidad = bool(fila[2]) or bool(fila[3])
+        if con_cantidad and not fila[1]:
+            total += 1
+        elif " " in fila[0].strip():
+            total += 1
+    return total
 
 def detectar_tabla(pagina) -> Tabla | None:
     """Devuelve la tabla de la página como matriz de strings limpios.
@@ -58,9 +95,10 @@ def detectar_tabla(pagina) -> Tabla | None:
     if mejor is None:
         return _tabla_por_coordenadas(pagina)
 
-    if _tiene_filas_mutiladas(mejor):
+    fallas = _contar_filas_mutiladas(mejor)
+    if fallas:
         respaldo = _tabla_por_coordenadas(pagina)
-        if respaldo is not None and not _tiene_filas_mutiladas(respaldo):
+        if respaldo is not None and _contar_filas_mutiladas(respaldo) < fallas:
             return respaldo
 
     return mejor

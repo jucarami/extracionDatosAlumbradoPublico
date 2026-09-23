@@ -10,10 +10,10 @@ from pathlib import Path
 import pandas as pd
 import pdfplumber
 
-from .config import CLAVE_DEDUPLICACION, COLUMNAS_SALIDA
+from .config import CLAVE_DEDUPLICACION, COLUMNAS_SALIDA, RUTA_CORRECCIONES
 from .modelos import ContextoPagina
 from .paginas import procesar_pagina
-from .texto import quitar_tildes
+from .texto import normalizar_descripcion ,quitar_tildes
 
 log = logging.getLogger(__name__)
 
@@ -207,6 +207,74 @@ def resolver_paginas_duplicadas(
     ]
     return datos[mascara].reset_index(drop=True), incidencias
 
+def aplicar_correcciones(
+    datos: pd.DataFrame,
+    ruta_correcciones: Path,
+) -> tuple[pd.DataFrame, list[str]]:
+    """Aplica las correcciones manuales autorizadas por el área técnica.
+
+    Existe porque algunos formatos traen errores que no se pueden resolver
+    leyendo el PDF: números de solicitud equivocados en el origen, o filas
+    que pdfplumber colapsa sin forma segura de separarlas. Corregirlas en el
+    código las escondería; en este archivo quedan con su motivo, quién las
+    autorizó y cuándo.
+
+    Dos acciones: 'agregar' crea una fila nueva tomando el contexto de la
+    página, y 'corregir' cambia el valor de una columna en esa página.
+    """
+    if not ruta_correcciones.exists():
+        return datos, []
+
+    correcciones = pd.read_csv(ruta_correcciones, dtype=str, keep_default_na=False)
+    if correcciones.empty:
+        return datos, []
+
+    trabajo = datos.copy()
+    trabajo["_archivo"] = trabajo["Fuente"].map(_archivo_de_fuente)
+    trabajo["_pagina"] = trabajo["Pagina"].astype(str)
+
+    incidencias: list[str] = []
+    nuevas: list[dict[str, object]] = []
+
+    for _, c in correcciones.iterrows():
+        archivo, pagina = c["archivo"], str(c["pagina"])
+        en_pagina = (trabajo["_archivo"] == archivo) & (trabajo["_pagina"] == pagina)
+
+        if not en_pagina.any():
+            incidencias.append(
+                f"{archivo} pág {pagina}: corrección sin filas que coincidan, se ignora"
+            )
+            continue
+
+        modelo = trabajo[en_pagina].iloc[0]
+
+        if c["accion"] == "corregir":
+            trabajo.loc[en_pagina, c["campo"]] = c["valor"]
+            incidencias.append(
+                f"{archivo} pág {pagina}: corregido {c['campo']} a {c['valor']!r} "
+                f"({c['motivo']}, autorizó {c['autorizado_por']})"
+            )
+
+        elif c["accion"] == "agregar":
+            fila = {col: modelo[col] for col in COLUMNAS_SALIDA}
+            fila["codigo UCAP"] = c["codigo_ucap"]
+            fila["Descripcion UCAP"] = c["descripcion"]
+            fila["Colocar"] = c["colocar"]
+            fila["Quitar"] = c["quitar"]
+            fila["Descripcion Normalizada"] = normalizar_descripcion(c["descripcion"])
+            fila["Clave Consolidacion"] = c["codigo_ucap"]
+            nuevas.append(fila)
+            incidencias.append(
+                f"{archivo} pág {pagina}: agregado {c['codigo_ucap']} "
+                f"({c['motivo']}, autorizó {c['autorizado_por']})"
+            )
+
+    trabajo = trabajo.drop(columns=["_archivo", "_pagina"])
+    if nuevas:
+        trabajo = pd.concat([trabajo, pd.DataFrame(nuevas)], ignore_index=True)
+
+    return trabajo, incidencias
+
 def ejecutar(
     rutas: list[Path],
     ruta_salida: Path,
@@ -217,7 +285,8 @@ def ejecutar(
     resultado = extraer_lote(rutas, cantidades_en_cero)
 
     depurados, descartes = resolver_paginas_duplicadas(resultado.datos)
-    incidencias = resultado.incidencias + descartes
+    depurados, correcciones = aplicar_correcciones(depurados, RUTA_CORRECCIONES)
+    incidencias = resultado.incidencias + descartes + correcciones
 
     datos = (
         fusionar_con_historico(depurados, ruta_salida)

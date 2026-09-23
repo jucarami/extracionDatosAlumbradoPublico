@@ -52,6 +52,9 @@ UCAP EN VALIDACION DE APROBACION_2026.pdf pág 236: 'y se hizo el muro de conten
 UCAP EN VALIDACION DE APROBACION_2026.pdf pág 236: 'terreno' se descarta porque no tiene cantidad de colocar ni quitar
 UCAP EN VALIDACION DE APROBACION_2026.pdf pág 236: 'Se debe hacer la reposición de la infraestructura' se descarta porque no tiene cantidad de colocar ni quitar
 UCAP EN VALIDACION DE APROBACION_2026.pdf pág 236: 'de AP, y la actualización del modelo.' se descarta porque no tiene cantidad de colocar ni quitar
+UCAP EN VALIDACION DE APROBACION_2026.pdf pág 245: código no reconocido 'UCAP' en ''
+UCAP EN VALIDACION DE APROBACION_2026.pdf pág 245: '' se descarta porque no tiene cantidad de colocar ni quitar
+UCAP EN VALIDACION DE APROBACION_2026.pdf pág 245: se descarta fila con ítems colapsados (código '5200501 5200502', descripción 'Caja Concreto directamente enterrada Caja de concreto 50 x 50 cm')
 Tabla 1 al 331_2026.pdf: el documento 1265975 aparece con proyectos distintos en las págs 124, 125; posible error de digitación del número, se conservan todas
 Tablas 1 al 392_2025.pdf: el documento 1159547 aparece con proyectos distintos en las págs 97, 118; posible error de digitación del número, se conservan todas
 Tabla 1 al 331_2026.pdf pág 269: se descarta por duplicar el documento 1052703 (4 ítems, colocar 17); se conserva la pág 61 (4 ítems, colocar 17)
@@ -84,3 +87,6 @@ UCAP EN VALIDACION DE APROBACION_2026.pdf pág 125: se descarta por duplicar el 
 UCAP EN VALIDACION DE APROBACION_2026.pdf pág 130: se descarta por duplicar el documento 1353315 (2 ítems, colocar 2); se conserva la pág 108 (8 ítems, colocar 57)
 UCAP EN VALIDACION DE APROBACION_2026.pdf pág 212: se descarta por duplicar el documento 1371806 (1 ítems, colocar 1); se conserva la pág 211 (1 ítems, colocar 1)
 UCAP EN VALIDACION DE APROBACION_2026.pdf pág 68: se descarta por duplicar el documento 1394414 (4 ítems, colocar 28); se conserva la pág 55 (4 ítems, colocar 28)
+UCAP EN VALIDACION DE APROBACION_2026.pdf pág 245: agregado 5200501 (Fila colapsada por bordes faltantes en el PDF, autorizó Camilo)
+UCAP EN VALIDACION DE APROBACION_2026.pdf pág 245: agregado 5200502 (Fila colapsada por bordes faltantes en el PDF, autorizó Camilo)
+Tabla 1 al 331_2026.pdf pág 98: corregido SS/SN a '1289497' (Numero de solicitud en cero en el formato original, autorizó Jhaan)
