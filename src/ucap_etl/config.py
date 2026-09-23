@@ -3,9 +3,21 @@
 from __future__ import annotations
 from pathlib import Path
 import re
+import sys
 
 # config.py -> ucap_etl -> src -> raíz del proyecto
-RAIZ_PROYECTO = Path(__file__).resolve().parents[2]
+def _raiz_proyecto() -> Path:
+    """Carpeta base del proyecto.
+
+    Empaquetado como ejecutable, es la carpeta donde está el .exe. Corriendo
+    desde el código fuente, es la raíz del repositorio.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parents[2]
+
+
+RAIZ_PROYECTO = _raiz_proyecto()
 DIR_RAW = RAIZ_PROYECTO / "data" / "raw"
 DIR_PROCESSED = RAIZ_PROYECTO / "data" / "processed"
 DIR_LOGS = RAIZ_PROYECTO / "logs"

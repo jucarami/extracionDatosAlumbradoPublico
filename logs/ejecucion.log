@@ -1,0 +1,29 @@
+Tabla 1 al 331_2026.pdf: sin cambios, se reutiliza la extracción anterior
+Tablas 1 al 392_2025.pdf: sin cambios, se reutiliza la extracción anterior
+UCAP EN VALIDACION DE APROBACION_2026.pdf: sin cambios, se reutiliza la extracción anterior
+CSV escrito: C:\Users\juanr\OneDrive\Desktop\alumbradoPublico\CSV_salida\ucap_historico.csv (4109 filas)
+--- Control de calidad ---
+filas                    4109
+documentos_unicos        923
+paginas                  937
+ucaps_distintos          177
+sin_codigo_ucap          32
+sin_proyecto             0
+sin_numero_documento     0
+Los registros sin código conservan la celda vacía: se cruzan por Descripcion Normalizada, nunca se colapsan bajo una etiqueta común.
+Incidencias: 92, ver C:\Users\juanr\OneDrive\Desktop\alumbradoPublico\logs\ucap_historico.incidencias.log
+   Tabla 1 al 331_2026.pdf pág 15: 'CANTIDADES OBRA CIVIL' se descarta porque no tiene cantidad de colocar ni quitar
+   Tabla 1 al 331_2026.pdf pág 39: 'Solo se relaciona un retiro de luminira en el formto de UCAPS' se descarta porque no tiene cantidad de colocar ni quitar
+   Tabla 1 al 331_2026.pdf pág 39: 'Ya que la luminaria 092938 no existe en el MDE' se descarta porque no tiene cantidad de colocar ni quitar
+   Tabla 1 al 331_2026.pdf pág 98: encabezado incompleto (proyecto='Unidad Belen Rincón CR 76A CL 1C-5', tipo='SS', numero='')
+   Tabla 1 al 331_2026.pdf pág 158: 'NOTA LUMINARIA PUEDE SER DE 50W O 56W PARA NO DAÑAR' se descarta porque no tiene cantidad de colocar ni quitar
+   Tabla 1 al 331_2026.pdf pág 158: 'UNIFORMIDAD' se descarta porque no tiene cantidad de colocar ni quitar
+   Tabla 1 al 331_2026.pdf pág 183: 'La luminaria de 70 W no existe en el modelo no se relaciona' se descarta porque no tiene cantidad de colocar ni quitar
+   Tabla 1 al 331_2026.pdf pág 183: 'en la lista de unidades constructivas' se descarta porque no tiene cantidad de colocar ni quitar
+   Tabla 1 al 331_2026.pdf pág 193: 'El poste Carabobo no existe en el modelo digital de energia' se descarta porque no tiene cantidad de colocar ni quitar
+   Tabla 1 al 331_2026.pdf pág 193: 'no se relaciona el retiro en la lista de UCAPS' se descarta porque no tiene cantidad de colocar ni quitar
+   Tabla 1 al 331_2026.pdf pág 246: 'LA UCAP DEL PROYECTOR 110W SE ENCUENTRA EN TRAMITE' se descarta porque no tiene cantidad de colocar ni quitar
+   Tabla 1 al 331_2026.pdf pág 307: 'Cantidfades consideradas en la obra' se descarta porque no tiene cantidad de colocar ni quitar
+   Tablas 1 al 392_2025.pdf pág 130: código no reconocido 'NOTA' en 'LOS RETIROS NO EXISTEN EN TERRENO PERO SI ESTAN EN EL MODELO'
+   Tablas 1 al 392_2025.pdf pág 130: 'LOS RETIROS NO EXISTEN EN TERRENO PERO SI ESTAN EN EL MODELO' se descarta porque no tiene cantidad de colocar ni quitar
+   Tablas 1 al 392_2025.pdf pág 175: código no reconocido 'NOTA' en 'LOS RETIROS SE RELACIONAN YA QUE EXISTEN EN EL MODELO'
