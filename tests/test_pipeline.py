@@ -1,16 +1,20 @@
 import pandas as pd
 
-from ucap_etl.pipeline import resolver_paginas_duplicadas
+from ucap_etl.pipeline import asignar_identificador_sin_codigo, resolver_paginas_duplicadas
 
 
-def _fila(pagina, documento, colocar, archivo="val_2026.pdf", proyecto="OBRA A"):
-    """Fábrica de filas mínimas: solo las columnas que usa la deduplicación."""
+def _fila(pagina, documento, colocar, archivo="val_2026.pdf", proyecto="OBRA A",
+          codigo="5200272", descripcion_norm=""):
+    """Fábrica de filas mínimas: solo las columnas que usan estas funciones."""
     return {
         "Pagina": pagina,
         "SS/SN": documento,
         "Proyecto": proyecto,
+        "codigo UCAP": codigo,
+        "Descripcion Normalizada": descripcion_norm,
         "Colocar": colocar,
         "Fuente": f"{archivo}, pagina {pagina}",
+        "Clave Consolidacion": codigo,
     }
 
 
@@ -89,3 +93,37 @@ def test_datos_vacios_no_fallan():
     resultado, incidencias = resolver_paginas_duplicadas(datos)
     assert resultado.empty
     assert incidencias == []
+    
+def test_items_sin_codigo_del_mismo_documento_comparten_proyecto():
+    datos = pd.DataFrame([
+        _fila(1, "567386", 16, codigo="", descripcion_norm="CRUCETA 3600 MM"),
+        _fila(1, "567386", 12, codigo="", descripcion_norm="CRUCETA 1500 MM"),
+    ])
+    r = asignar_identificador_sin_codigo(datos)
+    assert list(r["Clave Consolidacion"]) == [
+        "PROY-1-1|CRUCETA 3600 MM",
+        "PROY-1-2|CRUCETA 1500 MM",
+    ]
+
+
+def test_documentos_distintos_reciben_proyectos_distintos():
+    datos = pd.DataFrame([
+        _fila(1, "111111", 1, codigo="", descripcion_norm="CRUCETA"),
+        _fila(2, "222222", 1, codigo="", descripcion_norm="CRUCETA"),
+    ])
+    r = asignar_identificador_sin_codigo(datos)
+    assert list(r["Clave Consolidacion"]) == ["PROY-1-1|CRUCETA", "PROY-2-1|CRUCETA"]
+
+
+def test_mismo_item_repetido_conserva_su_numero():
+    datos = pd.DataFrame([
+        _fila(1, "567386", 5, codigo="", descripcion_norm="CRUCETA 3600 MM"),
+        _fila(2, "567386", 3, codigo="", descripcion_norm="CRUCETA 3600 MM"),
+    ])
+    r = asignar_identificador_sin_codigo(datos)
+    assert set(r["Clave Consolidacion"]) == {"PROY-1-1|CRUCETA 3600 MM"}
+    
+def test_filas_con_codigo_no_se_tocan():
+    datos = pd.DataFrame([_fila(1, "567386", 5, codigo="5200272")])
+    r = asignar_identificador_sin_codigo(datos)
+    assert list(r["Clave Consolidacion"]) == ["5200272"]

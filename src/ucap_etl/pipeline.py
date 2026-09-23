@@ -275,6 +275,54 @@ def aplicar_correcciones(
 
     return trabajo, incidencias
 
+def asignar_identificador_sin_codigo(datos: pd.DataFrame) -> pd.DataFrame:
+    """Asigna un identificador correlativo a los ítems que no traen código UCAP.
+
+    Regla del área técnica: los ítems sin código de un mismo documento se
+    agrupan bajo un mismo proyecto correlativo (PROY-1, PROY-2...), y dentro
+    de cada uno se numera cada ítem distinto (PROY-1-1, PROY-1-2...), para que
+    dos materiales distintos del mismo documento no queden indistinguibles.
+
+    El correlativo se asigna ordenando por archivo y número de documento, de
+    modo que se mantenga estable entre corridas mientras no cambien los PDF.
+    """
+    if datos.empty:
+        return datos
+
+    salida = datos.copy()
+    sin_codigo = salida["codigo UCAP"].fillna("").astype(str).str.strip() == ""
+    if not sin_codigo.any():
+        return salida
+
+    trabajo = salida[sin_codigo].copy()
+    trabajo["_archivo"] = trabajo["Fuente"].map(_archivo_de_fuente)
+
+    documentos = (
+        trabajo[["_archivo", "SS/SN"]]
+        .drop_duplicates()
+        .sort_values(["_archivo", "SS/SN"])
+        .reset_index(drop=True)
+    )
+    numero_doc = {
+        (fila["_archivo"], fila["SS/SN"]): i + 1
+        for i, fila in documentos.iterrows()
+    }
+
+    claves: dict[int, str] = {}
+    vistos: dict[int, dict[str, int]] = {}
+
+    for indice, fila in trabajo.iterrows():
+        doc = numero_doc[(fila["_archivo"], fila["SS/SN"])]
+        item = fila["Descripcion Normalizada"]
+        items_doc = vistos.setdefault(doc, {})
+        if item not in items_doc:
+            items_doc[item] = len(items_doc) + 1
+        claves[indice] = f"PROY-{doc}-{items_doc[item]}|{item}"
+
+    salida.loc[list(claves), "Clave Consolidacion"] = list(claves.values())
+    return salida
+
+
 def ejecutar(
     rutas: list[Path],
     ruta_salida: Path,
@@ -286,6 +334,7 @@ def ejecutar(
 
     depurados, descartes = resolver_paginas_duplicadas(resultado.datos)
     depurados, correcciones = aplicar_correcciones(depurados, RUTA_CORRECCIONES)
+    depurados = asignar_identificador_sin_codigo(depurados)
     incidencias = resultado.incidencias + descartes + correcciones
 
     datos = (
