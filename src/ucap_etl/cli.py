@@ -77,6 +77,10 @@ def construir_parser() -> argparse.ArgumentParser:
         help="Escribe 0 en Colocar/Quitar vacíos en vez de dejar la celda vacía",
     )
     parser.add_argument(
+        "--sin-cache", action="store_true",
+        help="Reprocesa todos los PDF ignorando la extracción cacheada",
+    )
+    parser.add_argument(
         "--debug", type=int, metavar="N",
         help="Inspecciona la página N del primer PDF y termina",
     )
@@ -86,6 +90,8 @@ def construir_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     return parser
+
+
 
 def main(argv: list[str] | None = None) -> int:
     args = construir_parser().parse_args(argv)
@@ -107,6 +113,7 @@ def main(argv: list[str] | None = None) -> int:
         ruta_salida=salida,
         modo_append=args.append,
         cantidades_en_cero=args.ceros,
+        usar_cache=not args.sin_cache,
     )
 
     reportar(

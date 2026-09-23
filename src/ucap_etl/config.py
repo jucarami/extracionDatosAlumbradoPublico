@@ -59,3 +59,6 @@ TITULOS_FORMATO: frozenset[str] = frozenset({
 })
 
 RUTA_CORRECCIONES = RAIZ_PROYECTO / "data" / "correcciones.csv"
+DIR_CACHE = RAIZ_PROYECTO / "data" / "cache"
+#: Se sube cuando cambia alguna regla de extracción, para invalidar el caché.
+VERSION_EXTRACCION = "1"

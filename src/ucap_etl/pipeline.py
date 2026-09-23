@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import csv
 import logging
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
 import pdfplumber
 
-from .config import CLAVE_DEDUPLICACION, COLUMNAS_SALIDA, RUTA_CORRECCIONES
+from .config import CLAVE_DEDUPLICACION, COLUMNAS_SALIDA, RUTA_CORRECCIONES, DIR_CACHE, VERSION_EXTRACCION
 from .modelos import ContextoPagina
 from .paginas import procesar_pagina
 from .texto import normalizar_descripcion ,quitar_tildes
@@ -24,6 +25,69 @@ class ResultadoExtraccion:
 
     datos: pd.DataFrame
     incidencias: list[str] = field(default_factory=list)
+    
+def _firma_archivo(ruta: Path) -> str:
+    """Identifica la versión de un PDF por su nombre, tamaño y fecha.
+
+    Si cualquiera de los tres cambia, el archivo se reprocesa. Es más rápido
+    que un hash del contenido y suficiente para detectar un PDF reemplazado.
+    """
+    info = ruta.stat()
+    return f"{ruta.name}|{info.st_size}|{int(info.st_mtime)}"
+
+
+def _rutas_cache(ruta_pdf: Path, dir_cache: Path) -> tuple[Path, Path]:
+    """Archivos de caché de un PDF: sus filas y sus metadatos."""
+    base = "".join(c if c.isalnum() else "_" for c in ruta_pdf.stem)[:80]
+    return dir_cache / f"{base}.csv", dir_cache / f"{base}.json"
+
+
+def _leer_cache(ruta_pdf: Path, dir_cache: Path) -> ResultadoExtraccion | None:
+    """Devuelve la extracción cacheada si el PDF no ha cambiado.
+
+    El caché se descarta también cuando cambia la versión de extracción, para
+    que un ajuste en las reglas no quede escondido detrás de datos viejos.
+    """
+    ruta_filas, ruta_meta = _rutas_cache(ruta_pdf, dir_cache)
+    if not ruta_filas.exists() or not ruta_meta.exists():
+        return None
+
+    try:
+        meta = json.loads(ruta_meta.read_text(encoding="utf-8"))
+        if meta.get("firma") != _firma_archivo(ruta_pdf):
+            return None
+        if meta.get("version") != VERSION_EXTRACCION:
+            return None
+        datos = pd.read_csv(ruta_filas, dtype=str, keep_default_na=False)
+    except Exception:
+        return None
+
+    return ResultadoExtraccion(datos=datos, incidencias=meta.get("incidencias", []))
+
+
+def _guardar_cache(
+    ruta_pdf: Path,
+    resultado: ResultadoExtraccion,
+    dir_cache: Path,
+) -> None:
+    """Guarda la extracción de un PDF para no repetirla en la próxima corrida."""
+    dir_cache.mkdir(parents=True, exist_ok=True)
+    ruta_filas, ruta_meta = _rutas_cache(ruta_pdf, dir_cache)
+    try:
+        a_texto_csv(resultado.datos).to_csv(ruta_filas, index=False, encoding="utf-8")
+        ruta_meta.write_text(
+            json.dumps(
+                {
+                    "firma": _firma_archivo(ruta_pdf),
+                    "version": VERSION_EXTRACCION,
+                    "incidencias": resultado.incidencias,
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    except Exception:
+        log.warning("No se pudo guardar el caché de %s", ruta_pdf.name)
     
 def extraer_pdf(ruta_pdf: Path, cantidades_en_cero: bool = False) -> ResultadoExtraccion:
     """Recorre todas las páginas de un PDF y devuelve sus registros."""
@@ -93,13 +157,31 @@ def escribir_csv(datos: pd.DataFrame, ruta_salida: Path) -> Path:
     log.info("CSV escrito: %s (%d filas)", ruta_salida, len(datos))
     return ruta_salida  
 
-def extraer_lote(rutas: list[Path], cantidades_en_cero: bool = False) -> ResultadoExtraccion:
-    """Procesa varios PDF y concatena sus resultados."""
+def extraer_lote(
+    rutas: list[Path],
+    cantidades_en_cero: bool = False,
+    usar_cache: bool = True,
+) -> ResultadoExtraccion:
+    """Procesa varios PDF y concatena sus resultados.
+
+    Reutiliza la extracción cacheada de los PDF que no han cambiado, para que
+    agregar un archivo nuevo no obligue a releer los anteriores. Las reglas
+    posteriores (deduplicación, correcciones, correlativos) se aplican siempre
+    sobre el conjunto completo, porque dependen de todos los documentos.
+    """
     marcos: list[pd.DataFrame] = []
     incidencias: list[str] = []
 
     for ruta in rutas:
-        resultado = extraer_pdf(ruta, cantidades_en_cero)
+        cacheado = _leer_cache(ruta, DIR_CACHE) if usar_cache else None
+        if cacheado is not None:
+            log.info("%s: sin cambios, se reutiliza la extracción anterior", ruta.name)
+            resultado = cacheado
+        else:
+            resultado = extraer_pdf(ruta, cantidades_en_cero)
+            if usar_cache:
+                _guardar_cache(ruta, resultado, DIR_CACHE)
+
         marcos.append(resultado.datos)
         incidencias.extend(resultado.incidencias)
 
@@ -328,9 +410,10 @@ def ejecutar(
     ruta_salida: Path,
     modo_append: bool = False,
     cantidades_en_cero: bool = False,
+    usar_cache: bool = True,
 ) -> ResultadoExtraccion:
     """Punto de entrada del pipeline completo."""
-    resultado = extraer_lote(rutas, cantidades_en_cero)
+    resultado = extraer_lote(rutas, cantidades_en_cero,usar_cache)
 
     depurados, descartes = resolver_paginas_duplicadas(resultado.datos)
     depurados, correcciones = aplicar_correcciones(depurados, RUTA_CORRECCIONES)
