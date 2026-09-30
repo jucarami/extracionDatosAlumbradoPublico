@@ -1,0 +1,6 @@
+PDF_entrada/
+CSV_salida/
+build/
+dist/
+*.spec
+logs/*.log

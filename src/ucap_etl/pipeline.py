@@ -401,7 +401,10 @@ def asignar_identificador_sin_codigo(datos: pd.DataFrame) -> pd.DataFrame:
             items_doc[item] = len(items_doc) + 1
         claves[indice] = f"PROY-{doc}-{items_doc[item]}|{item}"
 
-    salida.loc[list(claves), "Clave Consolidacion"] = list(claves.values())
+        salida.loc[list(claves), "Clave Consolidacion"] = list(claves.values())
+        salida.loc[list(claves), "codigo UCAP"] = [
+        c.split("|")[0] for c in claves.values()
+    ]
     return salida
 
 
