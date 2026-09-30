@@ -4,3 +4,6 @@ build/
 dist/
 *.spec
 logs/*.log
+build/
+dist/
+*.spec
