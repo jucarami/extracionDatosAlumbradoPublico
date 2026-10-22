@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pandas as pd
 import pdfplumber
+import hashlib
 
 from .config import CLAVE_DEDUPLICACION, COLUMNAS_SALIDA, RUTA_CORRECCIONES, DIR_CACHE, VERSION_EXTRACCION
 from .modelos import ContextoPagina
@@ -27,35 +28,36 @@ class ResultadoExtraccion:
     incidencias: list[str] = field(default_factory=list)
     
 def _firma_archivo(ruta: Path) -> str:
-    """Identifica la versión de un PDF por su nombre, tamaño y fecha.
+    """Identifica un PDF por el contenido, no por el nombre.
 
-    Si cualquiera de los tres cambia, el archivo se reprocesa. Es más rápido
-    que un hash del contenido y suficiente para detectar un PDF reemplazado.
+    Un archivo renombrado o reenviado con otro nombre tiene el mismo hash,
+    así que se detecta como ya procesado en vez de entrar duplicado.
     """
-    info = ruta.stat()
-    return f"{ruta.name}|{info.st_size}|{int(info.st_mtime)}"
+    h = hashlib.sha256()
+    with open(ruta, "rb") as f:
+        for bloque in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(bloque)
+    return h.hexdigest()
 
 
-def _rutas_cache(ruta_pdf: Path, dir_cache: Path) -> tuple[Path, Path]:
-    """Archivos de caché de un PDF: sus filas y sus metadatos."""
-    base = "".join(c if c.isalnum() else "_" for c in ruta_pdf.stem)[:80]
-    return dir_cache / f"{base}.csv", dir_cache / f"{base}.json"
+def _rutas_cache(firma: str, dir_cache: Path) -> tuple[Path, Path]:
+    """Archivos de caché de un PDF, nombrados por su hash.
+
+    Al indexar por contenido y no por nombre, renombrar un PDF ya procesado
+    no obliga a volver a extraerlo.
+    """
+    return dir_cache / f"{firma[:32]}.csv", dir_cache / f"{firma[:32]}.json"
 
 
 def _leer_cache(ruta_pdf: Path, dir_cache: Path) -> ResultadoExtraccion | None:
-    """Devuelve la extracción cacheada si el PDF no ha cambiado.
-
-    El caché se descarta también cuando cambia la versión de extracción, para
-    que un ajuste en las reglas no quede escondido detrás de datos viejos.
-    """
-    ruta_filas, ruta_meta = _rutas_cache(ruta_pdf, dir_cache)
+    """Devuelve la extracción cacheada si el contenido del PDF ya se procesó."""
+    firma = _firma_archivo(ruta_pdf)
+    ruta_filas, ruta_meta = _rutas_cache(firma, dir_cache)
     if not ruta_filas.exists() or not ruta_meta.exists():
         return None
 
     try:
         meta = json.loads(ruta_meta.read_text(encoding="utf-8"))
-        if meta.get("firma") != _firma_archivo(ruta_pdf):
-            return None
         if meta.get("version") != VERSION_EXTRACCION:
             return None
         datos = pd.read_csv(ruta_filas, dtype=str, keep_default_na=False)
@@ -72,13 +74,15 @@ def _guardar_cache(
 ) -> None:
     """Guarda la extracción de un PDF para no repetirla en la próxima corrida."""
     dir_cache.mkdir(parents=True, exist_ok=True)
-    ruta_filas, ruta_meta = _rutas_cache(ruta_pdf, dir_cache)
+    firma = _firma_archivo(ruta_pdf)
+    ruta_filas, ruta_meta = _rutas_cache(firma, dir_cache)
     try:
         a_texto_csv(resultado.datos).to_csv(ruta_filas, index=False, encoding="utf-8")
         ruta_meta.write_text(
             json.dumps(
                 {
-                    "firma": _firma_archivo(ruta_pdf),
+                    "firma": firma,
+                    "archivo": ruta_pdf.name,
                     "version": VERSION_EXTRACCION,
                     "incidencias": resultado.incidencias,
                 },
@@ -156,6 +160,38 @@ def escribir_csv(datos: pd.DataFrame, ruta_salida: Path) -> Path:
     )
     log.info("CSV escrito: %s (%d filas)", ruta_salida, len(datos))
     return ruta_salida  
+
+def descartar_duplicados(rutas: list[Path]) -> tuple[list[Path], list[str]]:
+    """Deja un solo archivo por cada contenido distinto.
+
+    Un mismo lote de formatos puede llegar dos veces con nombres diferentes.
+    Si ambos quedan en la carpeta de entrada, sus líneas entrarían duplicadas
+    al histórico sin que la deduplicación por documento lo detecte, porque esa
+    agrupa dentro de cada archivo.
+
+    Entre dos archivos iguales se conserva el de nombre más descriptivo, que
+    es el más largo. El nombre importa porque queda en la columna de fuente y
+    porque las correcciones manuales apuntan a él.
+    """
+    por_firma: dict[str, list[Path]] = {}
+    for ruta in sorted(rutas):
+        por_firma.setdefault(_firma_archivo(ruta), []).append(ruta)
+
+    unicos: list[Path] = []
+    incidencias: list[str] = []
+
+    for repetidos in por_firma.values():
+        elegido = max(repetidos, key=lambda r: (len(r.name), r.name))
+        unicos.append(elegido)
+        for descartado in repetidos:
+            if descartado != elegido:
+                incidencias.append(
+                    f"{descartado.name}: mismo contenido que {elegido.name}, "
+                    f"no se procesa. Deje solo uno de los dos en la carpeta de entrada"
+                )
+
+    return sorted(unicos), incidencias
+
 
 def extraer_lote(
     rutas: list[Path],
@@ -416,12 +452,15 @@ def ejecutar(
     usar_cache: bool = True,
 ) -> ResultadoExtraccion:
     """Punto de entrada del pipeline completo."""
-    resultado = extraer_lote(rutas, cantidades_en_cero,usar_cache)
+    rutas, duplicados = descartar_duplicados(rutas)
+    for aviso in duplicados:
+        log.warning(aviso)
 
+    resultado = extraer_lote(rutas, cantidades_en_cero, usar_cache)
     depurados, descartes = resolver_paginas_duplicadas(resultado.datos)
     depurados, correcciones = aplicar_correcciones(depurados, RUTA_CORRECCIONES)
     depurados = asignar_identificador_sin_codigo(depurados)
-    incidencias = resultado.incidencias + descartes + correcciones
+    incidencias = resultado.incidencias + duplicados + descartes + correcciones
 
     datos = (
         fusionar_con_historico(depurados, ruta_salida)
